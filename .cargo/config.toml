@@ -1,0 +1,9 @@
+[target.thumbv7em-none-eabihf]
+runner = "probe-rs run --chip STM32H723VGTx"
+rustflags = [
+    "-C", "link-arg=-Tlink.x",
+    "-C", "target-cpu=cortex-m7",
+]
+
+[build]
+target = "thumbv7em-none-eabihf"

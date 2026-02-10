@@ -1,0 +1,25 @@
+[package]
+name = "Code-02-STM32H7-DM"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+panic-halt = "0.2"
+stm32h7xx-hal = { version = "0.15", features = ["stm32h735"] }
+
+[profile.dev]
+debug = true
+incremental = true
+panic = "abort"
+lto = true
+opt-level = 0
+
+[profile.release]
+codegen-units = 1
+debug = true
+incremental = false
+panic = "abort"
+lto = true
+opt-level = "s"
