@@ -1,5 +1,5 @@
 [package]
-name = "Code-02-STM32H7-DM"
+name = "code-02-stm32h7-dm"
 version = "0.1.0"
 edition = "2024"
 
@@ -7,6 +7,7 @@ edition = "2024"
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
 panic-halt = "0.2"
+rtt-target = "0.6.2"
 stm32h7xx-hal = { version = "0.15", features = ["stm32h735"] }
 
 [profile.dev]

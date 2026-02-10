@@ -92,6 +92,21 @@ panic-halt = "0.2"
 stm32h7xx-hal = { version = "0.15", features = ["stm32h735"] }
 ```
 
+当需要查询当前依赖使用了什么版本以及哪些可更新时，用以下命令行：
+
+```bash
+# 查看当前依赖使用了什么版本
+cargo tree
+# 查看当前依赖使用了什么版本（只看顶层）
+cargo tree -d 1
+
+# 安装 cargo-outdated 插件并查询最新版本
+cargo install cargo-outdated
+cargo outdated
+
+# 当版本仅一个小数点时，表示允许当前大版本下的所有小版本，两个小数点时指定小版本
+```
+
 ## 6. 编译优化 (opt-level = "s" panic = "abort")
 
 相应的编译优化，也填在 `<ropo_id>/Cargo.toml` 里，默认使用 dev 模式，当 `cargo build/run --release` 时使用 release 模式：
@@ -139,7 +154,64 @@ opt-level = "s"
 
 在配置里选择了 `runner = "probe-rs run --chip STM32H723VGTx"` ，可支持 st-link ，直接烧录：`cargo run`
 
+## 8. 其他常用 CLI
+
+```bash
+# 用于检查语法问题，比编译快非常多
+ca
+```
+
+
+
 # Rust 学习
 
+## 1. 实时传输库 - RTT_TARGET
 
+- **作用：**在 没有 UART 的情况下，通过 SWD/JTAG 调试探针（probe）输出日志
 
+- **安装：**`cargo add rtt-target`
+
+- **API 表格：**
+
+  | 类别              | 名称                             | 说明                                                         |
+  | ----------------- | -------------------------------- | ------------------------------------------------------------ |
+  | **宏 - 初始化**   | `rtt_init_print!()`              | 初始化默认 RTT Up channel0(用于 `rprintln!`)                 |
+  |                   | `rtt_init_defmt!()`              | 初始化用于 `defmt` 格式化日志（需要 `defmt feature`）        |
+  |                   | `rtt_init_log!()`                | 初始化 `log` 后端（需要 `log feature`）                      |
+  |                   | `rtt_init_default!()`            | 默认初始化宏（panic 等场景也可用）                           |
+  | **输出宏**        | `rprintln!()`                    | RTT 输出（println 形式，可格式化）                           |
+  |                   | `rprint!()`                      | RTT 原始输出，不追加换行                                     |
+  | **通道控制**      | `set_print_channel(chan)`        | 设置默认打印通道为指定通道                                   |
+  |                   | `set_defmt_channel(chan)`        | 设置 defmt 日志通道                                          |
+  | **Logger 初始化** | `init_logger()`                  | 初始化 `log` logger（默认级别）                              |
+  |                   | `init_logger_with_level(level)`  | 初始化 `log` logger 并指定日志级别                           |
+  | **底层写入**      | `write(bytes)` / `channel.write` | 向指定 RTT channel 写入原始字节                              |
+  | **Feature Flags** | `"log"`                          | 启用 `log` 支持（requires once_cell 等）([Lib.rs](https://lib.rs/crates/rtt-target/features?utm_source=chatgpt.com)) |
+  |                   | `"defmt"`                        | 启用 `defmt` 支持                                            |
+
+## 2. 非阻塞操作库 - non-blocking
+
+- **作用：**提供了一组 trait 和宏，让硬件抽象层（HAL）可以用统一的非阻塞风格书写接口，同时又能方便地转换成阻塞式调用，核心思想为操作尚未完成时，返回 Err(nb::Error::WouldBlock)，而不是一直阻塞等待
+
+  > *trait: Rust 中定义接口（共享行为）的机制，相当于其他语言的 interface / protocol*
+  >
+  > *核心特点：*
+  >
+  > ​	*可以为类型 **事后添加** 行为（通过 blanket impl 或 upstream crate）*
+  >
+  > ​	*支持 **默认实现**（default method）*
+  >
+  > ​	*支持 **关联类型**（associated type）*
+  >
+  > ​	*支持 **泛型约束**（where 子句 / bound）*
+
+- **安装：**`cargo add nb`
+
+- **API 与 trait 表格：**
+
+  | 名称               | 返回类型                      | 含义                                                         | 最常见用法场景                  |
+  | ------------------ | ----------------------------- | ------------------------------------------------------------ | ------------------------------- |
+  | `nb::Result<T, E>` | `Result<T, nb::Error<E>>`     | 非阻塞操作的标准返回类型（Either 成功、真实错误、或 WouldBlock） | 几乎所有 HAL 非阻塞方法         |
+  | `Error<E>`         | enum { WouldBlock, Other(E) } | WouldBlock 表示“现在还不能完成，再试一次”                    | —                               |
+  | `block!(expr)`     | 宏 → `Result<T, E>`           | 反复 poll 直到成功或出现真实错误（最常用阻塞转换宏）         | 临时想用阻塞风格时              |
+  | `try_poll!(expr)`  | 宏 → `Poll<Option<T>>`        | 更底层的 poll 接口（类似 futures::Poll）                     | 想自己写 scheduler / reactor 时 |
