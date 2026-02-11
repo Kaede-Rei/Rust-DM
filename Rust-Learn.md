@@ -215,3 +215,4 @@ ca
   | `Error<E>`         | enum { WouldBlock, Other(E) } | WouldBlock 表示“现在还不能完成，再试一次”                    | —                               |
   | `block!(expr)`     | 宏 → `Result<T, E>`           | 反复 poll 直到成功或出现真实错误（最常用阻塞转换宏）         | 临时想用阻塞风格时              |
   | `try_poll!(expr)`  | 宏 → `Poll<Option<T>>`        | 更底层的 poll 接口（类似 futures::Poll）                     | 想自己写 scheduler / reactor 时 |
+

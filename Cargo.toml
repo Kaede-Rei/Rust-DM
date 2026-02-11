@@ -8,7 +8,9 @@ cortex-m = "0.7"
 cortex-m-rt = "0.7"
 panic-halt = "0.2"
 rtt-target = "0.6.2"
-stm32h7xx-hal = { version = "0.15", features = ["stm32h735"] }
+stm32h7xx-hal = { version = "0.15", features = ["stm32h735", "can"] }
+fdcan = "0.2"
+nb = "1"
 
 [profile.dev]
 debug = true

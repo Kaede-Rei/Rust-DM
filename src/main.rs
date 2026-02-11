@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+use cortex_m::prelude::_embedded_hal_blocking_delay_DelayMs;
 use cortex_m_rt::entry;
 use panic_halt as _;
 
@@ -13,12 +14,10 @@ fn main() -> ! {
     rtt_init_print!();
 
     // 初始化板卡
-    board::init_board();
-
-    rgb_ws2812::blue();
-    rprintln!("蓝色");
+    let mut delay = board::init_board();
 
     loop {
-        
+        delay.delay_ms(1000u32);
+        rprintln!("主循环运行中...");
     }
 }

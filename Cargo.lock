@@ -24,6 +24,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46afbd2983a5d5a7bd740ccb198caf5b82f45c40c09c0eed36052d91cb92e719"
 
 [[package]]
+name = "bitflags"
+version = "1.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
+
+[[package]]
 name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -35,6 +41,8 @@ version = "0.1.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
+ "fdcan",
+ "nb 1.1.0",
  "panic-halt",
  "rtt-target",
  "stm32h7xx-hal",
@@ -103,6 +111,20 @@ name = "embedded-storage"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a21dea9854beb860f3062d10228ce9b976da520a73474aed3171ec276bc0c032"
+
+[[package]]
+name = "fdcan"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a745a7ef1532cc436619631a102c1d2f71e8fd4e82f1ee48c85eaa73c0487e81"
+dependencies = [
+ "bitflags",
+ "nb 1.1.0",
+ "paste",
+ "static_assertions",
+ "vcell",
+ "volatile-register",
+]
 
 [[package]]
 name = "fugit"
@@ -212,6 +234,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
 name = "stm32h7"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -235,6 +263,7 @@ dependencies = [
  "embedded-dma",
  "embedded-hal",
  "embedded-storage",
+ "fdcan",
  "fugit",
  "nb 1.1.0",
  "paste",
