@@ -6,7 +6,7 @@ use fdcan::{
 use hal::{delay::Delay, gpio::Speed, pac, prelude::*, rcc::rec, spi};
 use stm32h7xx_hal as hal;
 
-use rtt_target::rprintln;
+use rtt_target::{rprintln, rtt_init_print};
 
 use crate::drvl::*;
 
@@ -21,13 +21,14 @@ use crate::drvl::*;
 pub fn init_board() -> Delay {
     // ========== 初始化板卡及所有外设 ========== //
 
+    rtt_init_print!();
+    rprintln!("正在初始化板卡...");
+
+    // 获取外设句柄
     let dp = pac::Peripherals::take().unwrap();
     let cp = cortex_m::Peripherals::take().unwrap();
     let pwr = dp.PWR.constrain();
-    // 对于 500 MHz，需要最高电压域 VOS0
-    let pwrcfg = pwr.vos0(&dp.SYSCFG).freeze();
-
-    rprintln!("正在初始化板卡...");
+    let pwrcfg = pwr.freeze();
 
     // 启用外部晶振
     let rcc = dp.RCC.constrain();
@@ -51,14 +52,15 @@ pub fn init_board() -> Delay {
     // ========== SPI6 - WS2812 ========== //
 
     rprintln!("正在配置 SPI6 - WS2812...");
+
     // 配置 GPIO
     let gpioa = dp.GPIOA.split(clocks.peripheral.GPIOA);
 
     // PA5 作为 SPI6 SCK
-    let sck = gpioa.pa5.into_alternate::<8>();
+    let sck = gpioa.pa5.into_alternate();
 
     // PA7 作为 SPI6 MOSI
-    let mosi = gpioa.pa7.into_alternate::<8>();
+    let mosi = gpioa.pa7.into_alternate();
 
     // 配置 SPI6 - 6MHz, MODE_1 (CPOL=Low, CPHA=2 Edge)
     let spi = dp.SPI6.spi(
@@ -89,8 +91,8 @@ pub fn init_board() -> Delay {
 
     // PD0 - CAN1 RX, PD1 - CAN1 TX (AF9)
     let gpiod = dp.GPIOD.split(clocks.peripheral.GPIOD);
-    let rx = gpiod.pd0.into_alternate::<9>().speed(Speed::VeryHigh);
-    let tx = gpiod.pd1.into_alternate::<9>().speed(Speed::VeryHigh);
+    let rx = gpiod.pd0.into_alternate().speed(Speed::VeryHigh);
+    let tx = gpiod.pd1.into_alternate().speed(Speed::VeryHigh);
 
     // 创建 FDCAN1 实例（进入 ConfigMode）
     let mut can1 = dp.FDCAN1.fdcan(tx, rx, fdcan_prec);
@@ -122,7 +124,7 @@ pub fn init_board() -> Delay {
         .set_frame_transmit(FrameTransmissionConfig::ClassicCanOnly);
     can1.apply_config(config);
 
-    // 切换到正常模式 (Normal Mode)
+    // 切换到 Normal Mode
     let can1 = can1.into_normal();
 
     // 初始化 DM 电机 CAN 驱动
@@ -135,6 +137,9 @@ pub fn init_board() -> Delay {
 
     // 使能 DM 电机
     motor_dm::dm_enable(0x01);
+
+    // 蓝色常亮 - 系统正常
+    rgb_ws2812::blue();
 
     // ========== 完成并返回 ========== //
 

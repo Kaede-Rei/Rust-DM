@@ -4,6 +4,8 @@ use cortex_m::interrupt::Mutex;
 use hal::{pac, prelude::*, spi};
 use stm32h7xx_hal as hal;
 
+use rtt_target::rprintln;
+
 const LOW_LEVEL: u8 = 0xC0; // 表示 WS2812 的 0
 const HIGH_LEVEL: u8 = 0xF0; // 表示 WS2812 的 1
 
@@ -21,6 +23,7 @@ pub fn init(spi: spi::Spi<pac::SPI6, spi::Enabled, u8>) {
     cortex_m::interrupt::free(|cs| {
         *WS2812_SPI.borrow(cs).borrow_mut() = Some(spi);
     });
+    rprintln!("WS2812 驱动初始化完成");
 }
 
 /// ### 描述

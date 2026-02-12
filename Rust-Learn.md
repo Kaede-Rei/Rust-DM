@@ -158,7 +158,7 @@ opt-level = "s"
 
 ```bash
 # 用于检查语法问题，比编译快非常多
-ca
+cargo check
 ```
 
 
