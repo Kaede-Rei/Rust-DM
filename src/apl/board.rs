@@ -6,7 +6,7 @@ use fdcan::{
 use hal::{delay::Delay, gpio::Speed, pac, prelude::*, rcc::rec, spi};
 use stm32h7xx_hal as hal;
 
-use rtt_target::{rprintln, rtt_init_print};
+use rtt_target::{rprint, rprintln, rtt_init_print};
 
 use crate::drvl::*;
 
@@ -22,7 +22,7 @@ pub fn init_board() -> Delay {
     // ========== 初始化板卡及所有外设 ========== //
 
     rtt_init_print!();
-    rprintln!("正在初始化板卡...");
+    rprintln!("========== 正在初始化板卡... ==========");
 
     // 获取外设句柄
     let dp = pac::Peripherals::take().unwrap();
@@ -45,13 +45,13 @@ pub fn init_board() -> Delay {
         .pclk4(75.MHz()) // APB4
         .freeze(pwrcfg, &dp.SYSCFG);
 
-    rprintln!("时钟配置完成，正在配置外设...");
+    rprintln!("- 时钟配置完成，正在配置外设...");
 
     let mut delay = Delay::new(cp.SYST, clocks.clocks);
 
     // ========== SPI6 - WS2812 ========== //
 
-    rprintln!("正在配置 SPI6 - WS2812...");
+    rprintln!("- 正在配置 SPI6 - WS2812...");
 
     // 配置 GPIO
     let gpioa = dp.GPIOA.split(clocks.peripheral.GPIOA);
@@ -72,11 +72,12 @@ pub fn init_board() -> Delay {
     );
 
     // 初始化 WS2812 驱动
+    rprint!("- ");
     rgb_ws2812::init(spi);
 
     // ========== CAN1 - DM 电机 ========== //
 
-    rprintln!("正在配置 CAN1 - DM 电机...");
+    rprintln!("- 正在配置 CAN1 - DM 电机...");
 
     // FDCAN 时钟源选择: PLL1Q = 100MHz
     let fdcan_prec = clocks
@@ -128,6 +129,7 @@ pub fn init_board() -> Delay {
     let can1 = can1.into_normal();
 
     // 初始化 DM 电机 CAN 驱动
+    rprint!("- ");
     motor_dm::init(can1);
 
     // ========== 启用各驱动 ========== //
@@ -136,14 +138,14 @@ pub fn init_board() -> Delay {
     delay.delay_ms(1500u32);
 
     // 使能 DM 电机
-    motor_dm::dm_enable(0x01);
+    motor_dm::enable(0x01);
 
     // 蓝色常亮 - 系统正常
     rgb_ws2812::blue();
 
     // ========== 完成并返回 ========== //
 
-    rprintln!("板卡初始化完成");
+    rprintln!("========== 板卡初始化完成 ==========");
 
     delay
 }
