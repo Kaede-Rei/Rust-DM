@@ -79,7 +79,7 @@ pub fn can_send(id: u16, data: &[u8]) {
             }
         }
     });
-
+    
     asm::delay(300_000);
 }
 
@@ -92,7 +92,7 @@ pub fn can_send(id: u16, data: &[u8]) {
 /// ### 返回
 /// - Some(RxFrameInfo): 中断已收到新数据，返回帧头信息，数据写入 buffer
 /// - None: 无新数据
-///
+/// 
 pub fn can_rcvd(buffer: &mut [u8]) -> Option<RxFrameInfo> {
     cortex_m::interrupt::free(|cs| {
         let mut rx_buf = CAN_RX_BUF.borrow(cs).borrow_mut();
@@ -355,7 +355,7 @@ pub fn get_spd(id: u16) -> Option<f32> {
 pub fn get_torgue(id: u16) -> Option<f32> {
     let mut feedback = [0u8; 8];
     get_feedback(id, &mut feedback)?;
- 
+
     let torque_bytes = ((feedback[4] as u16) << 8) | (feedback[5] as u16);
     Some(u16_to_f32(torque_bytes, -28.0, 28.0, 12))
 }
@@ -365,7 +365,7 @@ pub fn get_torgue(id: u16) -> Option<f32> {
 /// ### 描述
 /// - FDCAN1 中断处理函数
 /// - 当 FIFO0 收到新消息时触发，自动读取数据到全局缓冲区
-///
+/// 
 #[interrupt]
 fn FDCAN1_IT0() {
     cortex_m::interrupt::free(|cs| {

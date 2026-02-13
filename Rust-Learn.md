@@ -72,7 +72,7 @@ fn main() -> ! {
 
 添加对应的 HAL 软件包（如这里就是 `cargo add stm32h7xx-hal`），在主函数里添加 `use stm32h7xx_hal as hal; use hal::prelude::*;` ，编译：`cargo build`
 
-此外还需要添加其他依赖，则在 `<ropo_id>/Cargo.toml` 里添加：
+此外还需要添加其他依赖，则在 `<repo_id>/Cargo.toml` 里添加：
 
 ```toml
 [package]
@@ -98,7 +98,7 @@ stm32h7xx-hal = { version = "0.15", features = ["stm32h735"] }
 # 查看当前依赖使用了什么版本
 cargo tree
 # 查看当前依赖使用了什么版本（只看顶层）
-cargo tree -d 1
+cargo tree --depth 1
 
 # 安装 cargo-outdated 插件并查询最新版本
 cargo install cargo-outdated
@@ -109,7 +109,7 @@ cargo outdated
 
 ## 6. 编译优化 (opt-level = "s" panic = "abort")
 
-相应的编译优化，也填在 `<ropo_id>/Cargo.toml` 里，默认使用 dev 模式，当 `cargo build/run --release` 时使用 release 模式：
+相应的编译优化，也填在 `<repo_id>/Cargo.toml` 里，默认使用 dev 模式，当 `cargo build/run --release` 时使用 release 模式：
 
 ```toml
 [profile.dev]
@@ -161,58 +161,199 @@ opt-level = "s"
 cargo check
 ```
 
+## 9. 工程结构与模块职责
 
+用简单的分层模块组织，便于把板级初始化、驱动、业务逻辑解耦
+
+```
+src/
+  main.rs        # 入口：调用 init_board + 演示驱动 API
+  lib.rs         # 库入口：公开各层模块与 prelude
+  apl/           # 应用层 
+  drvl/          # 驱动层（DM 电机、WS2812）
+  srvl/          # 业务层（预留）
+  tools/         # 工具层（预留）
+```
+
+- `main.rs` 只保留主流程：初始化板卡、调度任务、打印关键日志
+- `lib.rs` 负责公开模块与 `prelude`，把常用导入聚合起来
+- `tools` 常用工具
+- `drvl` 存放外设驱动与协议适配层
+- `srvl` 基于外设驱动与协议封装好通信与算法
+- `apl` 将任务逻辑封装在一个任务函数里供 `main.rs` 调度
+- `prelude` 统一 re-export，便于在 `main.rs` 里少写路径
+
+## 10. 板级初始化关键点（只关注时钟与电源）
+
+- **电源域**：通过 `PWR.constrain()` 与 `freeze()` 固化供电配置，保证后续时钟配置可用
+- **时钟源**：启用 24MHz HSE，作为 PLL 输入
+- **PLL 配置**：PLL1 P/Q/R 输出分别用于 SYSCLK 与外设内核时钟
+- **总线分频**：SYSCLK=300MHz，AHB=150MHz，APB1~4=75MHz
+- **原则**：先电源后时钟，再进入外设初始化与业务逻辑
 
 # Rust 学习
 
-## 1. 实时传输库 - RTT_TARGET
+## 1. 运行时与目标约束
 
-- **作用：**在 没有 UART 的情况下，通过 SWD/JTAG 调试探针（probe）输出日志
+- `#![no_std]`：禁用标准库，改用 `core`/`alloc`；嵌入式通常无 OS、无堆或堆受限
+- `#![no_main]`：禁用默认入口，交给运行时宏生成入口
+- `#[entry]`：由 `cortex-m-rt` 提供，生成复位向量入口
+- `panic` 策略：`panic-halt` 直接死循环，避免堆栈展开带来的体积与依赖成本
 
-- **安装：**`cargo add rtt-target`
+> *最小运行时、可控的二进制体积与启动流程*
 
-- **API 表格：**
+## 2. 属性与宏
 
-  | 类别              | 名称                             | 说明                                                         |
-  | ----------------- | -------------------------------- | ------------------------------------------------------------ |
-  | **宏 - 初始化**   | `rtt_init_print!()`              | 初始化默认 RTT Up channel0(用于 `rprintln!`)                 |
-  |                   | `rtt_init_defmt!()`              | 初始化用于 `defmt` 格式化日志（需要 `defmt feature`）        |
-  |                   | `rtt_init_log!()`                | 初始化 `log` 后端（需要 `log feature`）                      |
-  |                   | `rtt_init_default!()`            | 默认初始化宏（panic 等场景也可用）                           |
-  | **输出宏**        | `rprintln!()`                    | RTT 输出（println 形式，可格式化）                           |
-  |                   | `rprint!()`                      | RTT 原始输出，不追加换行                                     |
-  | **通道控制**      | `set_print_channel(chan)`        | 设置默认打印通道为指定通道                                   |
-  |                   | `set_defmt_channel(chan)`        | 设置 defmt 日志通道                                          |
-  | **Logger 初始化** | `init_logger()`                  | 初始化 `log` logger（默认级别）                              |
-  |                   | `init_logger_with_level(level)`  | 初始化 `log` logger 并指定日志级别                           |
-  | **底层写入**      | `write(bytes)` / `channel.write` | 向指定 RTT channel 写入原始字节                              |
-  | **Feature Flags** | `"log"`                          | 启用 `log` 支持（requires once_cell 等）([Lib.rs](https://lib.rs/crates/rtt-target/features?utm_source=chatgpt.com)) |
-  |                   | `"defmt"`                        | 启用 `defmt` 支持                                            |
+- `#[entry]` / `#[interrupt]`：将函数放入中断向量表或入口表
+- `#[inline]` / `#[inline(always)]`：在 ISR 或热路径上强制内联，减少函数调用开销（压栈/出栈）
+- `#[no_mangle]`：防止符号名被混淆，常用于需要被 C 调用的接口或中断处理函数
+- `#[cfg(feature = "...")]`：用特性开关裁剪功能，控制固件体积
+- `macro_rules!`：在无反射场景下生成样板代码（如寄存器映射、协议打包）
 
-## 2. 非阻塞操作库 - non-blocking
+## 3. 嵌入式 Rust 设计思维
 
-- **作用：**提供了一组 trait 和宏，让硬件抽象层（HAL）可以用统一的非阻塞风格书写接口，同时又能方便地转换成阻塞式调用，核心思想为操作尚未完成时，返回 Err(nb::Error::WouldBlock)，而不是一直阻塞等待
+### 3.1 类型状态编程 (Typestate Programming)
+Rust 及其 HAL 库的核心优势，将硬件状态编码进类型系统中，**在编译期杜绝运行时错误**
 
-  > *trait: Rust 中定义接口（共享行为）的机制，相当于其他语言的 interface / protocol*
-  >
-  > *核心特点：*
-  >
-  > ​	*可以为类型 **事后添加** 行为（通过 blanket impl 或 upstream crate）*
-  >
-  > ​	*支持 **默认实现**（default method）*
-  >
-  > ​	*支持 **关联类型**（associated type）*
-  >
-  > ​	*支持 **泛型约束**（where 子句 / bound）*
+*   **例子**：GPIO 引脚的配置
+    *   `PA5<Input<Floating>>`：输入浮空状态
+    *   `PA5<Output<PushPull>>`：推挽输出状态
+    *   **优势**：无法将一个配置为 Input 的引脚传给需要 Output 引脚的驱动函数；如果不匹配，代码**无法编译通过**，而不是在运行时崩溃
 
-- **安装：**`cargo add nb`
+### 3.2 零成本抽象 (Zero-Cost Abstractions)
+Rust 的高级抽象（如迭代器、闭包、Future）编译后生成的汇编代码，通常与手写的优化 C / 汇编一样高效，没有任何运行时额外开销
 
-- **API 与 trait 表格：**
+*   **例子**：
+    ```rust
+    // 这种写法编译后往往等价于简单的汇编循环指令
+    iterator.map(|x| x + 1).filter(|x| x > 10).collect()
+    ```
 
-  | 名称               | 返回类型                      | 含义                                                         | 最常见用法场景                  |
-  | ------------------ | ----------------------------- | ------------------------------------------------------------ | ------------------------------- |
-  | `nb::Result<T, E>` | `Result<T, nb::Error<E>>`     | 非阻塞操作的标准返回类型（Either 成功、真实错误、或 WouldBlock） | 几乎所有 HAL 非阻塞方法         |
-  | `Error<E>`         | enum { WouldBlock, Other(E) } | WouldBlock 表示“现在还不能完成，再试一次”                    | —                               |
-  | `block!(expr)`     | 宏 → `Result<T, E>`           | 反复 poll 直到成功或出现真实错误（最常用阻塞转换宏）         | 临时想用阻塞风格时              |
-  | `try_poll!(expr)`  | 宏 → `Poll<Option<T>>`        | 更底层的 poll 接口（类似 futures::Poll）                     | 想自己写 scheduler / reactor 时 |
+### 3.3 RAII 与单例模式
+*   **RAII (资源获取即初始化)**：驱动结构体创建时初始化硬件，销毁时自动关闭（Drop trait）
+*   **单例模式 (Singleton)**：`Peripherals::take().unwrap()` 确保外设实例在全剧中只能被获取一次，从根本上防止了多个驱动同时操作同一个硬件寄存器的竞态条件
 
+## 4. 所有权、生命周期与 static
+
+- **所有权**：保证外设句柄在初始化后只被一个模块持有，避免多处同时写硬件寄存器
+- **生命周期**：外设句柄通常是“活到整个程序结束”的资源；可用 `static` 或全局单例持有
+- `static` + `Mutex<RefCell<...>>`：在中断与前台共享资源时，常用安全模式
+
+## 5. 临界区与中断安全
+
+- `cortex_m::interrupt::free(|cs| { ... })`：关闭中断的临界区
+- `Mutex<RefCell<T>>`：借助临界区完成“运行期可变性”
+- ISR 中尽量短小：只做缓存/置位，复杂处理放到主循环
+
+> *避免竞态条件，确保实时性*
+
+## 6. nb 非阻塞模型与 async/await
+
+- `nb` crate：通过返回 `WouldBlock` 错误码来实现非阻塞轮询
+- `async/await` (Embassy)：更现代的方案，利用 Rust 的状态机生成能力，让单片机能像写同步代码一样写异步代码，由 Executor 在空闲时自动休眠（WFI），极致省电
+
+## 7. 外设知识
+
+### 7.2 RCC (复位与时钟控制)
+MCU 的心脏；STM32H7 的时钟树极其复杂：
+*   **HSE/HSI**: 外部高速/内部高速时钟源
+*   **PLL (锁相环)**: 将低频输入倍频到高频 (如 300MHz)；包含 P/Q/R 分频输出
+*   **AHB/APB**: 总线时钟，外设挂载在不同总线上，需配置对应的分频系数
+
+### 7.3 SPI (串行外设接口)
+全双工同步通信
+*   **四线**: SCLK (时钟), MOSI (主出从入), MISO (主入从出), CS (片选)
+*   **模式 (Mode 0-3)**: 由 CPOL (时钟极性) 和 CPHA (时钟相位) 决定；WS2812 驱动中常用模拟 SPI 时序
+
+### 7.4 CAN-FD (灵活数据速率控制器局域网)
+*   **仲裁**: ID 小的优先级高，非破坏性仲裁
+*   **FD 特性**: 
+    *   **可变速率**: 控制段维持标称波特率，由于数据段加速 (如 5Mbps)
+    *   **长载荷**: 数据段最大支持 64 字节 (标准 CAN 仅 8 字节)
+*   **FIFO & Filter**: 硬件过滤无关 ID，减轻 CPU 负担
+
+## 8. 依赖包
+
+### 8.1 `cortex-m` & `cortex-m-rt`
+
+- **作用**：提供 Core 内核访问、启动代码、中断管理
+- **常用**：
+
+```rust
+use cortex_m::asm;
+use cortex_m::interrupt;
+
+// 临界区：关闭中断，防止数据竞争
+interrupt::free(|cs| {
+    // 安全访问 Mutex 保护的 static 资源
+});
+```
+
+```rust
+// 属性宏：指定入口点
+#![no_main]
+#[entry]
+fn main() -> ! { loop {} }
+```
+
+### 8.2 `stm32h7xx-hal`
+
+- **作用**：芯片级 HAL，封装着 STM32H7 的复杂寄存器操作；核心模式为 Extension Trait 与 Builder Pattern
+- **用法**：
+
+```rust
+// 获取外设单例 (Singleton)
+let dp = hal::pac::Peripherals::take().unwrap();
+
+// 约束 (Constrain) - 将寄存器块转换为 HAL 对象
+let rcc = dp.RCC.constrain();
+
+// 配置与冻结 (Freeze) - 时钟树配置一旦生效，便不可变
+let clocks = rcc.use_hse(24.MHz()).sys_ck(300.MHz()).freeze(pwrcfg, &dp.SYSCFG);
+
+// 类型转换 (Type State) - 改变引脚模式
+let gpioa = dp.GPIOA.split(clocks.peripheral.GPIOA);
+let mut sck = gpioa.pa5.into_alternate(); // PA5 变身为复用功能
+```
+
+### 8.3 `rtt-target`
+
+- **作用**：通过 JLink/STLink 直接打印日志到主机终端，不占用 UART，速度极快
+- **用法**：
+
+```rust
+rtt_init_print!();
+rprintln!("Hello Embedded Rust!");
+```
+
+### 8.4 `panic-halt`
+
+- **作用**：最简单的 Panic 处理——死循环；保留该包可确保程序在异常时立即停止，保留现场
+
+### 8.5 `fdcan`
+
+- **作用**：FDCAN 协议抽象
+- **用法**：
+
+```rust
+use fdcan::frame::{FrameFormat, TxFrameHeader};
+use fdcan::id::StandardId;
+
+let header = TxFrameHeader {
+    len: 8,
+    id: StandardId::new(0x123).unwrap().into(),
+    frame_format: FrameFormat::Standard,
+    bit_rate_switching: false,
+    marker: None,
+};
+```
+
+### 8.6 `nb`
+
+- **作用**：非阻塞结果类型与宏
+- **用法**：
+
+```rust
+// 将非阻塞调用转换为阻塞调用，直到操作完成
+let result = nb::block!(can.transmit(header, &data));
+```
