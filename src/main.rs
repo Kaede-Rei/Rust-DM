@@ -14,11 +14,13 @@ fn main() -> ! {
     // 初始化板卡
     let mut delay = board::init_board();
 
-    motor_dm::set_spd(0x01, 1.57);
-    // motor_dm::set_pos_spd(0x01, 3.14, 1.57);
+    // motor_dm::set_spd(0x01, 1.57);
+    // motor_dm::set_pos_spd(0x01, -3.1, 1.57);
+    motor_dm::set_pos_spd_cur(0x01, 5.07, 1.57, 1.0);
 
     let mut pos = 0.0;
     let mut spd = 0.0;
+    let mut torque = 0.0;
 
     loop {
         delay.delay_ms(1000u32);
@@ -31,6 +33,10 @@ fn main() -> ! {
             Some(s) => spd = s,
             None => rprintln!("获取电机速度失败"),
         }
-        rprintln!("当前电机位置: {:.2} rad, 速度: {:.2} rad/s", pos, spd);
+        match motor_dm::get_torque(0x01) {
+            Some(t) => torque = t,
+            None => rprintln!("获取电机扭矩失败"),
+        }
+        rprintln!("当前电机位置: {:.2} rad, 速度: {:.2} rad/s, 扭矩: {:.2} Nm", pos, spd, torque);
     }
 }

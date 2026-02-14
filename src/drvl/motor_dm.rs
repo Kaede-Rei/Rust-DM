@@ -241,8 +241,8 @@ pub fn set_pos_spd_cur(id: u16, pos: f32, spd: f32, cur: f32) {
 
     let id = id + 0x300;
     let pos_bytes = pos.to_le_bytes();
-    let spd_bytes = spd.to_le_bytes();
-    let cur_bytes = cur.to_le_bytes();
+    let spd_bytes = ((spd * 100.0) as u16).to_le_bytes();
+    let cur_bytes = ((cur * 10000.0) as u16).to_le_bytes();
 
     let data = [
         pos_bytes[0],
@@ -338,7 +338,7 @@ pub fn get_spd(id: u16) -> Option<f32> {
     let mut feedback = [0u8; 8];
     get_feedback(id, &mut feedback)?;
 
-    let spd_bytes = ((feedback[3] as u16) << 4) | ((feedback[4] as u16) >> 4);
+    let spd_bytes = ((feedback[3] as u16) << 4) | (((feedback[4] & 0xF0) >> 4) as u16);
     Some(u16_to_f32(spd_bytes, -10.0, 10.0, 12))
 }
 
@@ -352,11 +352,11 @@ pub fn get_spd(id: u16) -> Option<f32> {
 /// - Some(u8): 转矩反馈 (float, 4 字节)
 /// - None: 获取失败
 ///
-pub fn get_torgue(id: u16) -> Option<f32> {
+pub fn get_torque(id: u16) -> Option<f32> {
     let mut feedback = [0u8; 8];
     get_feedback(id, &mut feedback)?;
 
-    let torque_bytes = ((feedback[4] as u16) << 8) | (feedback[5] as u16);
+    let torque_bytes = (((feedback[4] & 0x0F) as u16) << 8) | (feedback[5] as u16);
     Some(u16_to_f32(torque_bytes, -28.0, 28.0, 12))
 }
 
